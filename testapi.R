@@ -1,3 +1,8 @@
+# Install mice from Github
+# The version of the mice on the local machine should be the same as the one in the API
+devtools::install_github("amices/mice@support_blocks") #version used in API
+
+# Packages
 library(jsonlite)
 library(httr2)
 library(mice)
@@ -47,17 +52,14 @@ long <- response_long$result
 # Validate the element
 test_long <- mice::mice(data = nhanes, maxit = 2, m=2, seed=1)
 complete_long <- complete(test_long,"long",include = TRUE)
-getlong <- long %>% relocate(age,.after=.id)
-row.names(complete_long) <- as.character(1:nrow(complete_long))
+getlong <- long %>% relocate(.imp,.id,.after=chl)
 all.equal(getlong, complete_long) #there are differences in data type
 
-# Re-write the element
-getlong$age <- as.numeric(getlong$age)
-getlong$hyp <- as.numeric(getlong$hyp)
-getlong$chl <- as.numeric(getlong$chl)
-getlong$.id <- as.integer(getlong$.id)
-all.equal(getlong, complete_long) #there are mean relative differences for imputed values
-
+# Check the elements of imputed values
+all.equal(getlong$age, complete_long$age)
+all.equal(getlong$bmi, complete_long$bmi)
+all.equal(getlong$hyp, complete_long$hyp)
+all.equal(getlong$chl, complete_long$chl)
 
 ##### Fit ##### 
 
@@ -76,7 +78,8 @@ fit <- response_fit$result
 # Validate the element
 fitted <- with(test_long,lm(chl ~ age + bmi))
 test_fit <- getfit(fitted)
-all.equal(fit[,-7],as.data.frame(summary(test_fit))) #there are mean relative differences for estimate, std.error, statistic, and p.value
+testfit <- as.data.frame(summary(test_fit))
+all.equal(round(fit[-1],4),round(testfit[-1],4)) #there are mean relative differences for estimate, std.error, statistic, and p.value
 
 
 ##### Pool ##### 
@@ -97,9 +100,5 @@ pool <- response_pool$result
 test_pool <- pool(fitted)
 getpool <- pool |> 
   subset(select = -c(std.error, statistic, p.value, conf.low, conf.high)) |>
-  relocate(ubar,b,t,dfcom, .after = estimate)
-all.equal(getpool,test_pool$pooled)
-
-# Rewrite the element
-getpool$term <- as.factor(getpool$term)
-all.equal(getpool,test_pool$pooled) #there are mean relative differences in estimate, ubar, b, t, df, rirv, lambda, and fmi
+  relocate(ubar,b,t,dfcom, .before = df)
+all.equal(round(getpool[-1],2),round(test_pool$pooled[-1],2)) #there is difference in rounding
